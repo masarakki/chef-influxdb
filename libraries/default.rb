@@ -33,23 +33,39 @@ module InfluxDB
       InfluxDB::Client.new(username: user, password: pass)
     end
 
-    def self.render_config(hash, run_context)
-      self.install_toml(run_context)
-      self.require_toml
-      self.config_file(hash, run_context)
+    def install_influxdb(_source, _checksum)
+      path = ::File.join(Chef::Config[:file_cache_path], 'influxdb.deb')
+
+      remote_file path do
+        source _source if _source
+        checksum _checksum if _checksum
+        action :create
+      end
+
+      package path do
+        provider Chef::Provider::Package::Dpkg
+        action :install
+      end
     end
 
-    def self.install_toml(run_context)
-      toml_gem = Chef::Resource::ChefGem.new('toml', run_context)
-      toml_gem.run_action :install
+    def install_config(hash)
+      install_toml
+      require_toml
+      config_file(hash)
     end
 
-    def self.install_influxdb(run_context)
-      influxdb_gem = Chef::Resource::ChefGem.new('influxdb', run_context)
-      influxdb_gem.run_action :install
+    def install_service
+      service "influxdb" do
+        action [:enable, :start]
+        subscribes :restart, resources(file: INFLUXDB_CONFIG)
+      end
     end
 
-    def self.require_toml
+    def install_toml
+      gem "toml"
+    end
+
+    def require_toml
       require 'toml'
     end
 
@@ -57,12 +73,13 @@ module InfluxDB
       require 'influxdb'
     end
 
-    def self.config_file(hash, run_context)
-      f = Chef::Resource::File.new(INFLUXDB_CONFIG, run_context)
-      f.owner 'root'
-      f.mode  00644
-      f.content TOML::Generator.new(hash).body
-      f.run_action :create
+    def config_file(hash)
+      file INFLUXDB_CONFIG do
+        owner 'root'
+        mode  00644
+        content TOML::Generator.new(hash).body
+        action :create
+      end
     end
   end
 end

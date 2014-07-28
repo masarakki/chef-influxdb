@@ -30,34 +30,7 @@ def initialize(new_resource, run_context)
 end
 
 action :create do
-  install_influxdb
-  influxdb_service(:enable)
-  create_config
-end
-
-action :start do
-  influxdb_service(:start)
-end
-
-private
-
-def install_influxdb
-  path = ::File.join(Chef::Config[:file_cache_path], 'influxdb.deb')
-  remote = Chef::Resource::RemoteFile.new(path, @run_context)
-  remote.source(@source) if @source
-  remote.checksum(@checksum) if @checksum
-  remote.run_action(:create)
-
-  pkg = Chef::Resource::Package.new(path, @run_context)
-  pkg.provider(Chef::Provider::Package::Dpkg)
-  pkg.run_action(:install)
-end
-
-def influxdb_service(action)
-  s = Chef::Resource::Service.new('influxdb', @run_context)
-  s.run_action(action)
-end
-
-def create_config
-  InfluxDB::Helpers.render_config(@config, @run_context)
+  install_influxdb(@source, @checksum)
+  install_config(@config)
+  install_service
 end
